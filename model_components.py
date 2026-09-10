@@ -6,7 +6,8 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Optional, Literal, Dict, TypedDict
 
-PotentialTypes = Literal['square', 'coulomb', 'feshbach']
+StationaryPotentialTypes = Literal['square', 'coulomb', 'feshbach']
+DynamicPotentialTypes = Literal['gaussian', 'square', 'trapezoidal']
 
 NUM_EIGENSTATE_DENSITY_BINS = 50
 BANDWIDTH_ADJUST = 0.15
@@ -14,8 +15,8 @@ BANDWIDTH_ADJUST = 0.15
 
 @dataclass
 class SpatialGrid:
-    num_grid_points: Optional[int] = None  # specify either num_grid_points or grid_step
-    grid_step: Optional[float] = None
+    num_grid_points: int = None  # specify either num_grid_points or grid_step
+    grid_step: float = None
     grid_length: float = None  # the grid will be defined between [-grid_length / 2, grid_length / 2]
     grid: np.ndarray = None
 
@@ -26,7 +27,7 @@ class SpatialGrid:
             self.grid = np.linspace(-self.grid_length / 2, self.grid_length / 2, self.num_grid_points)
             self.grid_step = self.grid[1] - self.grid[0]
 
-        elif self.num_grid_points is None and self.grid:
+        elif self.num_grid_points is None and self.grid_step:
             # define the spatial grid according to the grid step
             self.grid = np.arange(-self.grid_length / 2, self.grid_length, self.grid_step)
             self.num_grid_points = len(self.grid)
@@ -35,14 +36,50 @@ class SpatialGrid:
             raise Exception('Specify either "num_grid_points" or "grid_step", but not both.')
 
 
-class PotentialParameters(TypedDict):
+@dataclass
+class TemporalGrid:
+    # time domain:
+    num_time_grid_points: int = None  # specify either num_time_grid_points or time_grid_step
+    time_grid_step: float = None
+    time_grid_length: float = None
+    time_grid: np.ndarray = None
+
+    # frequency domain:
+    num_freq_grid_points: int = None
+    freq_grid_step: float = None
+    freq_grid: np.ndarray = None
+
+    def __post_init__(self):
+        # construct temporal grid
+        if self.num_time_grid_points and self.time_grid_step is None:
+            # define the temporal grid according to the number of points
+            self.time_grid = np.linspace(0, self.time_grid_length, self.num_time_grid_points)
+            self.time_grid_step = self.time_grid[1] - self.time_grid[0]
+
+        elif self.num_time_grid_points is None and self.time_grid_step:
+            # define the temporal grid according to the grid step
+            self.time_grid = np.arange(0, self.time_grid_length + self.time_grid_step, self.time_grid_step)
+            self.num_time_grid_points = len(self.time_grid)
+
+        else:
+            raise Exception('Specify either "num_time_grid_points" or "time_grid_step", but not both.')
+
+        # construct
+        self.freq_grid = 2 * np.pi * (1 / self.time_grid_step) \
+                         * np.arange(0, self.num_time_grid_points / 2 - 1) / self.num_time_grid_points
+
+        self.num_freq_grid_points = len(self.freq_grid)
+        self.freq_grid_step = self.freq_grid[1] - self.freq_grid[0]
+
+
+class StationaryPotentialParameters(TypedDict):
     potential_type: PotentialTypes
     args: Dict
 
 
 @dataclass
 class StationaryPotential:
-    parameters: PotentialParameters
+    parameters: StationaryPotentialParameters
     spatial_grid: SpatialGrid
 
     potential: np.ndarray = None
@@ -129,3 +166,17 @@ class StationaryPotential:
 
         if show:
             plt.show()
+
+
+class DynamicPotentialParameters(TypedDict):
+    potential_type: StationaryPotentialTypes
+    args: Dict
+
+    drive_frequency: float
+
+
+
+@dataclass
+class DynamicPotential:
+    pass
+
